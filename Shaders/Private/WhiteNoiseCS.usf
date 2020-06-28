@@ -1,0 +1,13 @@
+
+RWTexture2D<uint> OutputTexture;
+float2 TextureSize;
+#define THREADGROUPSIZE_X 32
+#define THREADGROUPSIZE_Y 32
+#define THREADGROUPSIZE_Z 1
+
+
+[numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, THREADGROUPSIZE_Z)]
+void MainComputeShader(uint3 ThreadId : SV_DispatchThreadID)
+{
+    OutputTexture[ThreadId.xy] = 255;
+}
