@@ -1,13 +1,24 @@
+RWTexture2D<float> OutputTexture;
+float2 Dimensions;
+uint TimeStamp;
 
-RWTexture2D<uint> OutputTexture;
-float2 TextureSize;
-#define THREADGROUPSIZE_X 32
-#define THREADGROUPSIZE_Y 32
-#define THREADGROUPSIZE_Z 1
+
+float hash12(float2 p)
+{
+    float3 p3 = frac(float3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.x + p3.y) * p3.z);
+}
 
 
 [numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, THREADGROUPSIZE_Z)]
-void MainComputeShader(uint3 ThreadId : SV_DispatchThreadID)
-{
-    OutputTexture[ThreadId.xy] = 255;
+void MainComputeShader(uint3 Gid : SV_GroupID, //atm: -, 0...256, - in rows (Y)        --> current group index (dispatched by c++)
+                       uint3 DTid : SV_DispatchThreadID, //atm: 0...256 in rows & columns (XY)   --> "global" thread id
+                       uint3 GTid : SV_GroupThreadID, //atm: 0...256, -,- in columns (X)      --> current threadId in group / "local" threadId
+                       uint GI : SV_GroupIndex)            //atm: 0...256 in columns (X)           --> "flattened" index of a thread within a group)
+{   
+    float2 p = float2(DTid.xy * TimeStamp);
+    float output = hash12(p);
+    
+    OutputTexture[DTid.xy] = output;
 }

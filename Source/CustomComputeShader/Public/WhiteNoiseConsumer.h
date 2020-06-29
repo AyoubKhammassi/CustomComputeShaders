@@ -21,6 +21,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ShaderDemo)
 		class UTextureRenderTarget2D* RenderTarget;
+private:
+	uint32 TimeStamp;
 public:
 	// Sets default values for this pawn's properties
 	AWhiteNoiseConsumer();

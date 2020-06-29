@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "WhiteNoiseConsumer.h"
+
+#include "Kismet/GameplayStatics.h"
 #include "CustomShadersDeclarations/Private/ComputeShaderDeclaration.h"
 
 // Sets default values
@@ -12,6 +14,8 @@ AWhiteNoiseConsumer::AWhiteNoiseConsumer()
 	RootComponent = Root;
 
 	static_mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Static Mesh"));
+
+	TimeStamp = 0;
 }
 
 // Called when the game starts or when spawned
@@ -40,6 +44,8 @@ void AWhiteNoiseConsumer::Tick(float DeltaTime)
 
 	//Update parameters
 	FWhiteNoiseCSParameters parameters(RenderTarget);
+	TimeStamp++;
+	parameters.TimeStamp = TimeStamp;
 	FWhiteNoiseCSManager::Get()->UpdateParameters(parameters);
 }
 

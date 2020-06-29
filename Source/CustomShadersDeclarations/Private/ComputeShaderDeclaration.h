@@ -26,6 +26,8 @@ struct  FWhiteNoiseCSParameters
 
 private:
 	FIntPoint CachedRenderTargetSize;
+public:
+	uint32 TimeStamp;
 };
 
 

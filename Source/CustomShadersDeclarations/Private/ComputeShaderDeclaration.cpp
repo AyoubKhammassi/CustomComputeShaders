@@ -24,8 +24,9 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FWhiteNoiseCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_UAV(RWTexture2D<uint>, OutputTexture)
+		SHADER_PARAMETER_UAV(RWTexture2D<float>, OutputTexture)
 		SHADER_PARAMETER(FVector2D, Dimensions)
+		SHADER_PARAMETER(UINT, TimeStamp)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -108,9 +109,9 @@ void FWhiteNoiseCSManager::PostResolveSceneColor_RenderThread(FRHICommandListImm
 	}
 
 	// Depending on your data, you might not have to lock here, just added this code to show how you can do it if you have to.
-	RenderEveryFrameLock.Lock();
+	//RenderEveryFrameLock.Lock();
 	FWhiteNoiseCSParameters copy = cachedParams;
-	RenderEveryFrameLock.Unlock();
+	//RenderEveryFrameLock.Unlock();
 
 	Execute_RenderThread(copy);
 }
@@ -127,20 +128,16 @@ void FWhiteNoiseCSManager::Execute_RenderThread(const FWhiteNoiseCSParameters& p
 
 	FRHICommandListImmediate& RHICmdList = GRHICommandList.GetImmediateCommandList();
 
-	UE_LOG(LogTemp, Warning, TEXT("Valid"));
 
 	//If the render target is not valid, get an element from the pool
 	if (!ComputeShaderOutput.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Not Valid"));
-		FPooledRenderTargetDesc ComputeShaderOutputDesc(FPooledRenderTargetDesc::Create2DDesc(params.GetRenderTargetSize(), params.RenderTarget->GetFormat(), FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false));
-		ComputeShaderOutputDesc.DebugName = TEXT("WhiteNoiseCS_OutputF");
-		bool found = GRenderTargetPool.FindFreeElement(RHICmdList, ComputeShaderOutputDesc, ComputeShaderOutput, TEXT("WhiteNoiseCS_Output"));
-		if(found)
-			UE_LOG(LogTemp, Warning, TEXT("Found Render Target"));
+		FPooledRenderTargetDesc ComputeShaderOutputDesc(FPooledRenderTargetDesc::Create2DDesc(params.GetRenderTargetSize(), params.RenderTarget->GetRenderTargetResource()->TextureRHI->GetFormat(), FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false));
+		ComputeShaderOutputDesc.DebugName = TEXT("WhiteNoiseCS_Output_RenderTarget");
+		GRenderTargetPool.FindFreeElement(RHICmdList, ComputeShaderOutputDesc, ComputeShaderOutput, TEXT("WhiteNoiseCS_Output_RenderTarget"));
 	}
 	
-
 	
 	//Unbind the previous bound render targets
 	UnbindRenderTargets(RHICmdList);
@@ -154,11 +151,14 @@ void FWhiteNoiseCSManager::Execute_RenderThread(const FWhiteNoiseCSParameters& p
 	FWhiteNoiseCS::FParameters PassParameters;
 	PassParameters.OutputTexture = ComputeShaderOutput->GetRenderTargetItem().UAV;
 	PassParameters.Dimensions = FVector2D(params.GetRenderTargetSize().X, params.GetRenderTargetSize().Y);
+	PassParameters.TimeStamp = params.TimeStamp;
 
 	TShaderMapRef<FWhiteNoiseCS> whiteNoiseCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 	FComputeShaderUtils::Dispatch(RHICmdList, *whiteNoiseCS, PassParameters,
 		FIntVector(FMath::DivideAndRoundUp(params.GetRenderTargetSize().X, NUM_THREADS_PER_GROUP_DIMENSION),
 			FMath::DivideAndRoundUp(params.GetRenderTargetSize().Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
+
+	RHICmdList.CopyTexture(ComputeShaderOutput->GetRenderTargetItem().ShaderResourceTexture, params.RenderTarget->GetRenderTargetResource()->TextureRHI, FRHICopyTextureInfo());
 
 	//RHICmdList.CopyToResolveTarget(params.RenderTarget->GetRenderTargetResource()->GetRenderTargetTexture(), params.RenderTarget->GetRenderTargetResource()->TextureRHI, FResolveParams());
 
