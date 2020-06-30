@@ -74,6 +74,5 @@ private:
 
 	TRefCountPtr<IPooledRenderTarget> ComputeShaderOutput;
 public:
-	void PostResolveSceneColor_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext);
-	void Execute_RenderThread(const FWhiteNoiseCSParameters& parameters);
+	void Execute_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext);
 };

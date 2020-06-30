@@ -13,16 +13,21 @@
 
 #define NUM_THREADS_PER_GROUP_DIMENSION 32
 
-/*Internal class thet holds the parameters and connects the HLSL Shader to the engine
-*
-*/
+/// <summary>
+/// Internal class thet holds the parameters and connects the HLSL Shader to the engine
+/// </summary>
 class FWhiteNoiseCS : public FGlobalShader
 {
 public:
 	//Declare this class as a global shader
 	DECLARE_GLOBAL_SHADER(FWhiteNoiseCS);
+	//Tells the engine that this shader uses a structure for  is parameters
 	SHADER_USE_PARAMETER_STRUCT(FWhiteNoiseCS, FGlobalShader);
-
+	/// <summary>
+	/// DECLARATION OF THE PARAMETER STRUCTURE
+	/// The parameters must match the parameters in the HLSL code
+	/// For each parameter, provide the C++ type, and the name (Same name used in HLSL code)
+	/// </summary>
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_UAV(RWTexture2D<float>, OutputTexture)
 		SHADER_PARAMETER(FVector2D, Dimensions)
@@ -30,15 +35,18 @@ public:
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
+	//Called by the engine to determine which permutations to compile for this shader
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
 	}
 
+	//Modifies the compilations environment of the shader
 	static inline void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
+		//We're using it here to add some preprocessor defines. That way we don't have to change both C++ and HLSL code when we change the value for NUM_THREADS_PER_GROUP_DIMENSION
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), NUM_THREADS_PER_GROUP_DIMENSION);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), NUM_THREADS_PER_GROUP_DIMENSION);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Z"), 1);
@@ -47,7 +55,7 @@ public:
 };
 
 // This will tell the engine to create the shader and where the shader entry point is.
-//                            ShaderType                            ShaderPath                     Shader function name    Type
+//                        ShaderType              ShaderPath             Shader function name    Type
 IMPLEMENT_GLOBAL_SHADER(FWhiteNoiseCS, "/CustomShaders/WhiteNoiseCS.usf", "MainComputeShader", SF_Compute);
 
 
@@ -62,15 +70,13 @@ void FWhiteNoiseCSManager::BeginRendering()
 	{
 		return;
 	}
-
 	bCachedParamsAreValid = false;
-
-	//Get the Renderer Module and add our entry to the callbacks si it can be executed each frame after the scene rendering is done
+	//Get the Renderer Module and add our entry to the callbacks so it can be executed each frame after the scene rendering is done
 	const FName RendererModuleName("Renderer");
 	IRendererModule* RendererModule = FModuleManager::GetModulePtr<IRendererModule>(RendererModuleName);
 	if (RendererModule)
 	{
-		OnPostResolvedSceneColorHandle = RendererModule->GetResolvedSceneColorCallbacks().AddRaw(this, &FWhiteNoiseCSManager::PostResolveSceneColor_RenderThread);
+		OnPostResolvedSceneColorHandle = RendererModule->GetResolvedSceneColorCallbacks().AddRaw(this, &FWhiteNoiseCSManager::Execute_RenderThread);
 	}
 }
 
@@ -101,65 +107,50 @@ void FWhiteNoiseCSManager::UpdateParameters(FWhiteNoiseCSParameters& params)
 	RenderEveryFrameLock.Unlock();
 }
 
-void FWhiteNoiseCSManager::PostResolveSceneColor_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext)
+
+void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext)
 {
-	if (!bCachedParamsAreValid)
+	//If there's no cached parameters to use, skip
+	//If no Render Target is supplied in the cachedParams, skip
+	if (!(bCachedParamsAreValid && cachedParams.RenderTarget))
 	{
 		return;
 	}
 
-	// Depending on your data, you might not have to lock here, just added this code to show how you can do it if you have to.
-	//RenderEveryFrameLock.Lock();
-	FWhiteNoiseCSParameters copy = cachedParams;
-	//RenderEveryFrameLock.Unlock();
-
-	Execute_RenderThread(copy);
-}
-
-void FWhiteNoiseCSManager::Execute_RenderThread(const FWhiteNoiseCSParameters& params)
-{
+	//Render Thread Assertion
 	check(IsInRenderingThread());
 
-	//If no Render Target is supplied in the params, return without executing
-	if (!params.RenderTarget)
-	{
-		return;
-	}
 
-	FRHICommandListImmediate& RHICmdList = GRHICommandList.GetImmediateCommandList();
-
-
-	//If the render target is not valid, get an element from the pool
+	//If the render target is not valid, get an element from the render target pool by supplying a Descriptor
 	if (!ComputeShaderOutput.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Not Valid"));
-		FPooledRenderTargetDesc ComputeShaderOutputDesc(FPooledRenderTargetDesc::Create2DDesc(params.GetRenderTargetSize(), params.RenderTarget->GetRenderTargetResource()->TextureRHI->GetFormat(), FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false));
+		FPooledRenderTargetDesc ComputeShaderOutputDesc(FPooledRenderTargetDesc::Create2DDesc(cachedParams.GetRenderTargetSize(), cachedParams.RenderTarget->GetRenderTargetResource()->TextureRHI->GetFormat(), FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false));
 		ComputeShaderOutputDesc.DebugName = TEXT("WhiteNoiseCS_Output_RenderTarget");
 		GRenderTargetPool.FindFreeElement(RHICmdList, ComputeShaderOutputDesc, ComputeShaderOutput, TEXT("WhiteNoiseCS_Output_RenderTarget"));
 	}
 	
-	
-	//Unbind the previous bound render targets
+	//Unbind the previously bound render targets
 	UnbindRenderTargets(RHICmdList);
 
 	//Specify the resource transition, we're executing this in post scene rendering so we set it to Graphics to Compute
 	RHICmdList.TransitionResource(EResourceTransitionAccess::ERWBarrier, EResourceTransitionPipeline::EGfxToCompute, ComputeShaderOutput->GetRenderTargetItem().UAV);
 
 
-
-	//Initialize shader parameters
+	//Fill the shader parameters structure with tha cached data supplied by the client
 	FWhiteNoiseCS::FParameters PassParameters;
 	PassParameters.OutputTexture = ComputeShaderOutput->GetRenderTargetItem().UAV;
-	PassParameters.Dimensions = FVector2D(params.GetRenderTargetSize().X, params.GetRenderTargetSize().Y);
-	PassParameters.TimeStamp = params.TimeStamp;
+	PassParameters.Dimensions = FVector2D(cachedParams.GetRenderTargetSize().X, cachedParams.GetRenderTargetSize().Y);
+	PassParameters.TimeStamp = cachedParams.TimeStamp;
 
+	//Get a reference to our shader type from global shader map
 	TShaderMapRef<FWhiteNoiseCS> whiteNoiseCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+	//Dispatch the compute shader
 	FComputeShaderUtils::Dispatch(RHICmdList, *whiteNoiseCS, PassParameters,
-		FIntVector(FMath::DivideAndRoundUp(params.GetRenderTargetSize().X, NUM_THREADS_PER_GROUP_DIMENSION),
-			FMath::DivideAndRoundUp(params.GetRenderTargetSize().Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
+		FIntVector(FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().X, NUM_THREADS_PER_GROUP_DIMENSION),
+			FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
 
-	RHICmdList.CopyTexture(ComputeShaderOutput->GetRenderTargetItem().ShaderResourceTexture, params.RenderTarget->GetRenderTargetResource()->TextureRHI, FRHICopyTextureInfo());
-
-	//RHICmdList.CopyToResolveTarget(params.RenderTarget->GetRenderTargetResource()->GetRenderTargetTexture(), params.RenderTarget->GetRenderTargetResource()->TextureRHI, FResolveParams());
+	RHICmdList.CopyTexture(ComputeShaderOutput->GetRenderTargetItem().ShaderResourceTexture, cachedParams.RenderTarget->GetRenderTargetResource()->TextureRHI, FRHICopyTextureInfo());
 
 }
