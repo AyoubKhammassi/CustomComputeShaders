@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "ComputeShaderDeclaration.h"
 
 #include "GlobalShader.h"
@@ -21,7 +18,7 @@ class FWhiteNoiseCS : public FGlobalShader
 public:
 	//Declare this class as a global shader
 	DECLARE_GLOBAL_SHADER(FWhiteNoiseCS);
-	//Tells the engine that this shader uses a structure for  is parameters
+	//Tells the engine that this shader uses a structure for its parameters
 	SHADER_USE_PARAMETER_STRUCT(FWhiteNoiseCS, FGlobalShader);
 	/// <summary>
 	/// DECLARATION OF THE PARAMETER STRUCTURE
@@ -62,7 +59,7 @@ IMPLEMENT_GLOBAL_SHADER(FWhiteNoiseCS, "/CustomShaders/WhiteNoiseCS.usf", "MainC
 //Static members
 FWhiteNoiseCSManager* FWhiteNoiseCSManager::instance = nullptr;
 
-
+//Begin the execution of the compute shader each frame
 void FWhiteNoiseCSManager::BeginRendering()
 {
 	//If the handle is already initalized and valid, no need to do anything
@@ -80,6 +77,7 @@ void FWhiteNoiseCSManager::BeginRendering()
 	}
 }
 
+//Stop the compute shader execution
 void FWhiteNoiseCSManager::EndRendering()
 {
 	//If the handle is not valid then there's no cleanup to do
@@ -99,15 +97,19 @@ void FWhiteNoiseCSManager::EndRendering()
 	OnPostResolvedSceneColorHandle.Reset();
 }
 
+//Update the parameters by a providing an instance of the Parameters structure used by the shader manager
 void FWhiteNoiseCSManager::UpdateParameters(FWhiteNoiseCSParameters& params)
 {
-	RenderEveryFrameLock.Lock();
 	cachedParams = params;
 	bCachedParamsAreValid = true;
-	RenderEveryFrameLock.Unlock();
 }
 
 
+/// <summary>
+/// Creates an instance of the shader type parameters structure and fills it using the cached shader manager parameter structure
+/// Gets a reference to the shader type from the global shaders map
+/// Dispatches the shader using the parameter structure instance
+/// </summary>
 void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext)
 {
 	//If there's no cached parameters to use, skip
@@ -151,6 +153,7 @@ void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmd
 		FIntVector(FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().X, NUM_THREADS_PER_GROUP_DIMENSION),
 			FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
 
+	//Copy shader's output to the render target provided by the client
 	RHICmdList.CopyTexture(ComputeShaderOutput->GetRenderTargetItem().ShaderResourceTexture, cachedParams.RenderTarget->GetRenderTargetResource()->TextureRHI, FRHICopyTextureInfo());
 
 }

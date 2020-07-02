@@ -1,5 +1,3 @@
-
-
 RWTexture2D<float> OutputTexture;
 float2 Dimensions;
 uint TimeStamp;

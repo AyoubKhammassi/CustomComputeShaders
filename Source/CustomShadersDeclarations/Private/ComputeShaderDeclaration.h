@@ -1,12 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
-
 #include "Runtime/Engine/Classes/Engine/TextureRenderTarget2D.h"
 
-//This struct act as a container for all the parameter that we'll to the Compute Shader Manager so it can update the state and exexute the shader
+//This struct act as a container for all the parameters that the client needs to pass to the Compute Shader Manager.
 struct  FWhiteNoiseCSParameters
 {
 	UTextureRenderTarget2D* RenderTarget;
@@ -31,9 +28,9 @@ public:
 };
 
 
-/**
- * 
- */
+/// <summary>
+/// A singleton Shader Manager for our Shader Type
+/// </summary>
 class CUSTOMSHADERSDECLARATIONS_API FWhiteNoiseCSManager
 {
 public:
@@ -45,14 +42,13 @@ public:
 		return instance;
 	};
 
-	// Call this when you want to hook onto the renderer and start drawing. The shader will be executed once per frame.
+	// Call this when you want to hook onto the renderer and start executing the compute shader. The shader will be dispatched once per frame.
 	void BeginRendering();
 
-	// When you are done, call this to stop drawing.
+	// Stops compute shader execution
 	void EndRendering();
 
-	// Call this whenever you have new parameters to share. You could set this up to update different sets of properties at
-	// different intervals to save on locking and GPU transfer time.
+	// Call this whenever you have new parameters to share.
 	void UpdateParameters(FWhiteNoiseCSParameters& DrawParameters);
 	
 private:
@@ -65,13 +61,13 @@ private:
 	//The delegate handle to our function that will be executed each frame by the renderer
 	FDelegateHandle OnPostResolvedSceneColorHandle;
 
-	FCriticalSection RenderEveryFrameLock;
-
-	//Cached Shader Parameters
+	//Cached Shader Manager Parameters
 	FWhiteNoiseCSParameters cachedParams;
+
 	//Whether we have cached parameters to pass to the shader or not
 	volatile bool bCachedParamsAreValid;
 
+	//Reference to a pooled render target where the shader will write its output
 	TRefCountPtr<IPooledRenderTarget> ComputeShaderOutput;
 public:
 	void Execute_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext);
