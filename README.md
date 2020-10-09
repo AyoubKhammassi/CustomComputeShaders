@@ -9,3 +9,6 @@ A minimal Unreal Engine 4 porject for adding and using a compute shader. I publi
 ##  Shaders:
 * **WhiteNoiseCS** : A simple compute shader that renders white noise to a texture
 
+## UE4 Version
+This project was created and tested using **UE4.24**. Id you're using **UE4.25**, you'll need to include **/Engine/Public/Platform.ush** in your shader file in order for it to compile.
+
