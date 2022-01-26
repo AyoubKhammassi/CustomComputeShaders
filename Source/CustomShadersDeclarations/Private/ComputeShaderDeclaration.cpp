@@ -133,7 +133,7 @@ void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmd
 	}
 	
 	//Unbind the previously bound render targets
-	UnbindRenderTargets(RHICmdList);
+	//UnbindRenderTargets(RHICmdList);
 
 	//Specify the resource transition, we're executing this in post scene rendering so we set it to Graphics to Compute
 	RHICmdList.TransitionResource(EResourceTransitionAccess::ERWBarrier, EResourceTransitionPipeline::EGfxToCompute, ComputeShaderOutput->GetRenderTargetItem().UAV);
@@ -149,7 +149,7 @@ void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmd
 	TShaderMapRef<FWhiteNoiseCS> whiteNoiseCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
 	//Dispatch the compute shader
-	FComputeShaderUtils::Dispatch(RHICmdList, *whiteNoiseCS, PassParameters,
+	FComputeShaderUtils::Dispatch(RHICmdList, whiteNoiseCS, PassParameters,
 		FIntVector(FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().X, NUM_THREADS_PER_GROUP_DIMENSION),
 			FMath::DivideAndRoundUp(cachedParams.GetRenderTargetSize().Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
 
