@@ -27,7 +27,7 @@ public:
 	/// </summary>
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_UAV(RWTexture2D<float>, OutputTexture)
-		SHADER_PARAMETER(FVector2D, Dimensions)
+		SHADER_PARAMETER(FVector2f, Dimensions)
 		SHADER_PARAMETER(UINT, TimeStamp)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -110,8 +110,10 @@ void FWhiteNoiseCSManager::UpdateParameters(FWhiteNoiseCSParameters& params)
 /// Gets a reference to the shader type from the global shaders map
 /// Dispatches the shader using the parameter structure instance
 /// </summary>
-void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmdList, class FSceneRenderTargets& SceneContext)
+void FWhiteNoiseCSManager::Execute_RenderThread(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
 {
+	FRHICommandListImmediate& RHICmdList = GraphBuilder.RHICmdList;
+
 	//If there's no cached parameters to use, skip
 	//If no Render Target is supplied in the cachedParams, skip
 	if (!(bCachedParamsAreValid && cachedParams.RenderTarget))
@@ -136,13 +138,12 @@ void FWhiteNoiseCSManager::Execute_RenderThread(FRHICommandListImmediate& RHICmd
 	//UnbindRenderTargets(RHICmdList);
 
 	//Specify the resource transition, we're executing this in post scene rendering so we set it to Graphics to Compute
-	RHICmdList.TransitionResource(EResourceTransitionAccess::ERWBarrier, EResourceTransitionPipeline::EGfxToCompute, ComputeShaderOutput->GetRenderTargetItem().UAV);
-
+	RHICmdList.TransitionResource(ERHIAccess::UAVCompute, ComputeShaderOutput->GetRenderTargetItem().GetRHI());
 
 	//Fill the shader parameters structure with tha cached data supplied by the client
 	FWhiteNoiseCS::FParameters PassParameters;
 	PassParameters.OutputTexture = ComputeShaderOutput->GetRenderTargetItem().UAV;
-	PassParameters.Dimensions = FVector2D(cachedParams.GetRenderTargetSize().X, cachedParams.GetRenderTargetSize().Y);
+	PassParameters.Dimensions = FVector2f(cachedParams.GetRenderTargetSize().X, cachedParams.GetRenderTargetSize().Y);
 	PassParameters.TimeStamp = cachedParams.TimeStamp;
 
 	//Get a reference to our shader type from global shader map
